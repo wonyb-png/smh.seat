@@ -26,9 +26,10 @@
     <!-- Firebase SDK 추가 (</body> 태그 바로 위에) -->
     <script type="module">
         // Firebase SDK 임포트
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
+        // ... (나머지 주석 및 TODO)
+        
         // Firebase 구성 (Firebase Console에서 복사한 내용으로 교체)
         const firebaseConfig = {
             apiKey: "AIzaSyDPnOtTMW-w6LD0hggKcFkYNGyJOPq1tEg",
