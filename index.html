@@ -449,29 +449,8 @@
         </div>
     </div>
 
-    <script type="module">
-        // Import the functions you need from the SDKs you need
-    import { initializeApp } from "firebase/app";
-    import { getAnalytics } from "firebase/analytics";
-    // TODO: Add SDKs for Firebase products that you want to use
-    // https://firebase.google.com/docs/web/setup#available-libraries
-
-    // Your web app's Firebase configuration
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-    const firebaseConfig = {
-      apiKey: "AIzaSyDPnOtTMW-w6LD0hggKcFkYNGyJOPq1tEg",
-      authDomain: "night-study-room-reservation.firebaseapp.com",
-      projectId: "night-study-room-reservation",
-      storageBucket: "night-study-room-reservation.firebasestorage.app",
-      messagingSenderId: "460809823747",
-      appId: "1:460809823747:web:9d76154d519d0e40b89036",
-      measurementId: "G-2L4SS21JQL"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-
+    <script>
+        let reservations = [];
         let selectedTimes = [];
         let selectedSeat = null;
 
@@ -508,22 +487,7 @@
             });
         });
 
-        async function loadReservations() {
-            try {
-                const querySnapshot = await getDocs(collection(db, 'reservations'));
-                const reservationsList = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                displayReservations(reservationsList);
-                return reservationsList;
-            } catch (error) {
-                console.error('예약 로드 실패:', error);
-                return [];
-            }
-        }
-
-        async function updateSeatAvailability() {
+        function updateSeatAvailability() {
             const date = document.getElementById('reservationDate').value;
             if (!date || selectedTimes.length === 0) return;
 
@@ -531,7 +495,6 @@
                 seat.classList.remove('reserved', 'selected');
             });
 
-            const reservations = await loadReservations();
             selectedTimes.forEach(time => {
                 reservations.forEach(r => {
                     if (r.date === date && r.seat) {
@@ -551,7 +514,7 @@
 
         dateInput.addEventListener('change', updateSeatAvailability);
 
-        window.makeReservation = async function() {
+        function makeReservation() {
             const name = document.getElementById('studentName').value;
             const classNum = document.getElementById('classNum').value;
             const studentNum = document.getElementById('studentNum').value;
@@ -562,7 +525,6 @@
                 return;
             }
 
-            const reservations = await loadReservations();
             for (let time of selectedTimes) {
                 const duplicate = reservations.find(r => 
                     r.date === date && r.time === time && r.seat === selectedSeat
@@ -573,33 +535,31 @@
                 }
             }
 
-            try {
-                if (selectedTimes.length === 2) {
-                    await addDoc(collection(db, 'reservations'), {
+            if (selectedTimes.length === 2) {
+                reservations.push({
+                    id: Date.now() + Math.random(),
+                    name, grade: '2', classNum, studentNum, date,
+                    room: '융합실', time: '19:00-21:00', seat: selectedSeat,
+                    isCombined: true
+                });
+            } else {
+                selectedTimes.forEach(time => {
+                    reservations.push({
+                        id: Date.now() + Math.random(),
                         name, grade: '2', classNum, studentNum, date,
-                        room: '융합실', time: '19:00-21:00', seat: selectedSeat,
-                        isCombined: true, createdAt: new Date().toISOString()
+                        room: '융합실', time: time, seat: selectedSeat,
+                        isCombined: false
                     });
-                } else {
-                    for (let time of selectedTimes) {
-                        await addDoc(collection(db, 'reservations'), {
-                            name, grade: '2', classNum, studentNum, date,
-                            room: '융합실', time: time, seat: selectedSeat,
-                            isCombined: false, createdAt: new Date().toISOString()
-                        });
-                    }
-                }
-                await loadReservations();
-                await updateSeatAvailability();
-                clearForm();
-                alert('예약이 완료되었습니다!');
-            } catch (error) {
-                console.error('예약 실패:', error);
-                alert('예약 중 오류가 발생했습니다.');
+                });
             }
-        };
 
-        function displayReservations(reservations) {
+            displayReservations();
+            updateSeatAvailability();
+            clearForm();
+            alert('예약이 완료되었습니다!');
+        }
+
+        function displayReservations() {
             const listDiv = document.getElementById('reservationsList');
             if (reservations.length === 0) {
                 listDiv.innerHTML = '<div class="empty-state">예약 내역이 없습니다.</div>';
@@ -623,14 +583,14 @@
                         <p style="color: #999; font-size: 14px; margin-bottom: 8px;">예약 취소를 원하시면 이름을 입력하세요:</p>
                         <div class="cancel-input-group">
                             <input type="text" class="cancel-input" id="cancel-${r.id}" placeholder="이름 입력">
-                            <button class="btn-cancel-confirm" onclick="confirmCancelReservation('${r.id}', '${r.name}')">취소하기</button>
+                            <button class="btn-cancel-confirm" onclick="confirmCancelReservation(${r.id}, '${r.name}')">취소하기</button>
                         </div>
                     </div>
                 </div>
             `).join('');
         }
 
-        window.confirmCancelReservation = async function(id, originalName) {
+        function confirmCancelReservation(id, originalName) {
             const inputName = document.getElementById(`cancel-${id}`).value.trim();
             if (!inputName) {
                 alert('이름을 입력해주세요.');
@@ -642,17 +602,12 @@
                 return;
             }
             if (confirm('정말 예약을 취소하시겠습니까?')) {
-                try {
-                    await deleteDoc(doc(db, 'reservations', id));
-                    await loadReservations();
-                    await updateSeatAvailability();
-                    alert('예약이 취소되었습니다.');
-                } catch (error) {
-                    console.error('취소 실패:', error);
-                    alert('취소 중 오류가 발생했습니다.');
-                }
+                reservations = reservations.filter(r => r.id !== id);
+                displayReservations();
+                updateSeatAvailability();
+                alert('예약이 취소되었습니다.');
             }
-        };
+        }
 
         function clearForm() {
             document.getElementById('studentName').value = '';
@@ -664,7 +619,7 @@
             selectedSeat = null;
         }
 
-        window.exportToExcel = async function() {
+        function exportToExcel() {
             const password = prompt('엑셀 다운로드 비밀번호를 입력하세요:');
             if (password === null) return;
             if (password !== '0000') {
@@ -673,7 +628,6 @@
             }
 
             const date = document.getElementById('reservationDate').value;
-            const reservations = await loadReservations();
             const todayReservations = reservations.filter(r => r.date === date);
 
             if (todayReservations.length === 0) {
@@ -697,9 +651,9 @@
             link.download = `야자실예약_${date}.csv`;
             link.click();
             alert(`${todayReservations.length}건의 예약 내역을 다운로드했습니다.`);
-        };
+        }
 
-        loadReservations();
+        displayReservations();
     </script>
 </body>
 </html>
