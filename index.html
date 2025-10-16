@@ -94,6 +94,7 @@
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
+            user-select: none;
         }
 
         .time-slot:hover {
@@ -142,6 +143,7 @@
             background: white;
             font-size: 0.9em;
             padding: 5px;
+            user-select: none;
         }
 
         .seat:hover {
@@ -322,6 +324,15 @@
         .legend-box.reserved {
             background: #e0e0e0;
         }
+
+        .date-display {
+            background: #fff;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -351,8 +362,9 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="reservationDate">날짜</label>
-                    <input type="date" id="reservationDate" readonly>
+                    <label>날짜 (오늘)</label>
+                    <div class="date-display" id="dateDisplay"></div>
+                    <input type="hidden" id="reservationDate">
                 </div>
 
                 <div class="form-group">
@@ -450,51 +462,105 @@
     </div>
 
     <script>
+        // 전역 변수
         let reservations = [];
         let selectedTimes = [];
         let selectedSeat = null;
 
-        const today = new Date();
-        const dateInput = document.getElementById('reservationDate');
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const todayString = `${year}-${month}-${day}`;
-        dateInput.value = todayString;
-        dateInput.min = todayString;
-        dateInput.max = todayString;
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('페이지 로드됨');
+            initializeDate();
+            setupTimeSlotListeners();
+            setupSeatListeners();
+            displayReservations();
+        });
 
-        document.querySelectorAll('.time-slot').forEach(slot => {
-            slot.addEventListener('click', function() {
-                const time = this.dataset.time;
-                if (this.classList.contains('selected')) {
-                    this.classList.remove('selected');
-                    selectedTimes = selectedTimes.filter(t => t !== time);
-                } else {
+        // 날짜 초기화
+        function initializeDate() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayString = `${year}-${month}-${day}`;
+            
+            document.getElementById('reservationDate').value = todayString;
+            document.getElementById('dateDisplay').textContent = `${year}년 ${month}월 ${day}일`;
+            
+            console.log('날짜 설정됨:', todayString);
+        }
+
+        // 시간대 선택 리스너 설정
+        function setupTimeSlotListeners() {
+            const timeSlots = document.querySelectorAll('.time-slot');
+            console.log('시간대 슬롯 개수:', timeSlots.length);
+            
+            timeSlots.forEach(slot => {
+                slot.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const time = this.dataset.time;
+                    console.log('시간대 클릭:', time);
+                    
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedTimes = selectedTimes.filter(t => t !== time);
+                        console.log('시간대 선택 해제:', time);
+                    } else {
+                        this.classList.add('selected');
+                        selectedTimes.push(time);
+                        console.log('시간대 선택:', time);
+                    }
+                    
+                    console.log('선택된 시간대들:', selectedTimes);
+                    updateSeatAvailability();
+                });
+            });
+        }
+
+        // 좌석 선택 리스너 설정
+        function setupSeatListeners() {
+            const seats = document.querySelectorAll('.seat');
+            console.log('좌석 개수:', seats.length);
+            
+            seats.forEach(seat => {
+                seat.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    if (this.classList.contains('reserved')) {
+                        console.log('예약된 좌석 클릭됨');
+                        return;
+                    }
+                    
+                    const seatNumber = this.dataset.seat;
+                    console.log('좌석 클릭:', seatNumber);
+                    
+                    // 모든 좌석 선택 해제
+                    document.querySelectorAll('.seat').forEach(s => s.classList.remove('selected'));
+                    
+                    // 현재 좌석 선택
                     this.classList.add('selected');
-                    selectedTimes.push(time);
-                }
-                updateSeatAvailability();
+                    selectedSeat = seatNumber;
+                    console.log('좌석 선택됨:', selectedSeat);
+                });
             });
-        });
+        }
 
-        document.querySelectorAll('.seat').forEach(seat => {
-            seat.addEventListener('click', function() {
-                if (this.classList.contains('reserved')) return;
-                document.querySelectorAll('.seat').forEach(s => s.classList.remove('selected'));
-                this.classList.add('selected');
-                selectedSeat = this.dataset.seat;
-            });
-        });
-
+        // 좌석 가용성 업데이트
         function updateSeatAvailability() {
             const date = document.getElementById('reservationDate').value;
-            if (!date || selectedTimes.length === 0) return;
+            console.log('좌석 가용성 업데이트:', date, selectedTimes);
+            
+            if (!date || selectedTimes.length === 0) {
+                console.log('날짜나 시간대 미선택');
+                return;
+            }
 
+            // 모든 좌석 초기화
             document.querySelectorAll('.seat').forEach(seat => {
                 seat.classList.remove('reserved', 'selected');
             });
 
+            // 예약된 좌석 표시
             selectedTimes.forEach(time => {
                 reservations.forEach(r => {
                     if (r.date === date && r.seat) {
@@ -509,22 +575,25 @@
                     }
                 });
             });
+            
             selectedSeat = null;
         }
 
-        dateInput.addEventListener('change', updateSeatAvailability);
-
+        // 예약하기
         function makeReservation() {
-            const name = document.getElementById('studentName').value;
-            const classNum = document.getElementById('classNum').value;
-            const studentNum = document.getElementById('studentNum').value;
+            const name = document.getElementById('studentName').value.trim();
+            const classNum = document.getElementById('classNum').value.trim();
+            const studentNum = document.getElementById('studentNum').value.trim();
             const date = document.getElementById('reservationDate').value;
+
+            console.log('예약 시도:', {name, classNum, studentNum, date, selectedTimes, selectedSeat});
 
             if (!name || !classNum || !studentNum || !date || selectedTimes.length === 0 || !selectedSeat) {
                 alert('모든 정보를 입력하고 시간대와 좌석을 선택해주세요!');
                 return;
             }
 
+            // 중복 체크
             for (let time of selectedTimes) {
                 const duplicate = reservations.find(r => 
                     r.date === date && r.time === time && r.seat === selectedSeat
@@ -535,6 +604,7 @@
                 }
             }
 
+            // 예약 생성
             if (selectedTimes.length === 2) {
                 reservations.push({
                     id: Date.now() + Math.random(),
@@ -553,14 +623,17 @@
                 });
             }
 
+            console.log('예약 완료:', reservations);
             displayReservations();
             updateSeatAvailability();
             clearForm();
             alert('예약이 완료되었습니다!');
         }
 
+        // 예약 현황 표시
         function displayReservations() {
             const listDiv = document.getElementById('reservationsList');
+            
             if (reservations.length === 0) {
                 listDiv.innerHTML = '<div class="empty-state">예약 내역이 없습니다.</div>';
                 return;
@@ -590,17 +663,21 @@
             `).join('');
         }
 
+        // 예약 취소
         function confirmCancelReservation(id, originalName) {
             const inputName = document.getElementById(`cancel-${id}`).value.trim();
+            
             if (!inputName) {
                 alert('이름을 입력해주세요.');
                 return;
             }
+
             if (inputName !== originalName) {
                 alert('예약자 이름과 일치하지 않습니다.');
                 document.getElementById(`cancel-${id}`).value = '';
                 return;
             }
+
             if (confirm('정말 예약을 취소하시겠습니까?')) {
                 reservations = reservations.filter(r => r.id !== id);
                 displayReservations();
@@ -609,6 +686,7 @@
             }
         }
 
+        // 폼 초기화
         function clearForm() {
             document.getElementById('studentName').value = '';
             document.getElementById('classNum').value = '';
@@ -619,9 +697,11 @@
             selectedSeat = null;
         }
 
+        // 엑셀 다운로드
         function exportToExcel() {
             const password = prompt('엑셀 다운로드 비밀번호를 입력하세요:');
             if (password === null) return;
+            
             if (password !== '0000') {
                 alert('비밀번호가 올바르지 않습니다.');
                 return;
@@ -650,10 +730,9 @@
             link.href = URL.createObjectURL(blob);
             link.download = `야자실예약_${date}.csv`;
             link.click();
+            
             alert(`${todayReservations.length}건의 예약 내역을 다운로드했습니다.`);
         }
-
-        displayReservations();
     </script>
 </body>
 </html>
