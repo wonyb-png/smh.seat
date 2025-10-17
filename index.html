@@ -563,20 +563,32 @@
 
         // ✅ OPTIMIZED: Update seat map using local data (no database call)
         function updateSeatAvailability() {
+            // 모든 좌석의 'reserved' 상태를 일단 초기화합니다.
             document.querySelectorAll('.seat').forEach(seat => seat.classList.remove('reserved'));
 
-            if (selectedTimes.length === 0) return;
-
             const reservedSeats = new Set();
-            todaysReservations.forEach(r => {
-                if (r.isCombined || selectedTimes.includes(r.time)) {
-                    reservedSeats.add(r.seat);
-                }
-            });
 
+            if (selectedTimes.length === 0) {
+                // [초기 로드 상태] 선택된 시간대가 없으면, 오늘 예약된 모든 좌석을 Set에 추가합니다.
+                todaysReservations.forEach(r => {
+                reservedSeats.add(r.seat);
+                });
+            } 
+            else {
+                // [시간대 선택 상태] 선택된 시간대가 있으면, 해당 시간대에 예약된 좌석만 필터링하여 Set에 추가합니다.
+                todaysReservations.forEach(r => {
+                    if (r.isCombined || selectedTimes.includes(r.time)) {
+                        reservedSeats.add(r.seat);
+                        }
+                });
+            }
+
+            // 최종적으로 Set에 담긴 좌석 번호에 'reserved' 클래스를 적용합니다.
             reservedSeats.forEach(seatNum => {
                 const seatEl = document.querySelector(`.seat[data-seat="${seatNum}"]`);
-                if (seatEl) seatEl.classList.add('reserved');
+                if (seatEl) {
+                    seatEl.classList.add('reserved');
+                }
             });
         }
 
