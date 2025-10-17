@@ -123,13 +123,6 @@
             font-size: 1.3em;
         }
 
-        .classroom {
-            display: grid;
-            gap: 15px;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
         .seat {
             aspect-ratio: 1;
             border: 2px solid #e0e0e0;
@@ -333,6 +326,12 @@
             font-size: 16px;
             color: #333;
         }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -456,47 +455,41 @@
 
             <div class="reservations-list">
                 <h2 style="margin-bottom: 20px;">예약 현황</h2>
-                <div id="reservationsList"></div>
+                <div id="reservationsList"><div class="loading">데이터 로딩 중...</div></div>
             </div>
         </div>
     </div>
-    // Import the functions you need from the SDKs you need
+
     <script type="module">
-        import { initializeApp } from "firebase/app";
-        import { getAnalytics } from "firebase/analytics";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-    // Your web app's Firebase configuration
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-    const firebaseConfig = {
-      apiKey: "AIzaSyDPnOtTMW-w6LD0hggKcFkYNGyJOPq1tEg",
-      authDomain: "night-study-room-reservation.firebaseapp.com",
-      projectId: "night-study-room-reservation",
-      storageBucket: "night-study-room-reservation.firebasestorage.app",
-      messagingSenderId: "460809823747",
-      appId: "1:460809823747:web:9d76154d519d0e40b89036",
-      measurementId: "G-2L4SS21JQL"
-    };
+        // ✅ Your Firebase configuration is now correctly placed here.
+        const firebaseConfig = {
+            apiKey: "AIzaSyDPnOtTMW-w6LD0hggKcFkYNGyJOPq1tEg",
+            authDomain: "night-study-room-reservation.firebaseapp.com",
+            projectId: "night-study-room-reservation",
+            storageBucket: "night-study-room-reservation.appspot.com",
+            messagingSenderId: "460809823747",
+            appId: "1:460809823747:web:9d76154d519d0e40b89036",
+            measurementId: "G-2L4SS21JQL"
+        };
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-        
+        // Firebase 초기화
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-    <script>
         // 전역 변수
-        let reservations = [];
         let selectedTimes = [];
         let selectedSeat = null;
+        let todaysReservations = []; // ✅ Today's reservations will be stored here
 
         // 페이지 로드 시 초기화
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('페이지 로드됨');
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('Firebase has been initialized.');
             initializeDate();
-            setupTimeSlotListeners();
-            setupSeatListeners();
-            displayReservations();
+            setupEventListeners();
+            await loadTodaysReservations(); // Load data for today
         });
 
         // 날짜 초기화
@@ -509,177 +502,164 @@
             
             document.getElementById('reservationDate').value = todayString;
             document.getElementById('dateDisplay').textContent = `${year}년 ${month}월 ${day}일`;
-            
-            console.log('날짜 설정됨:', todayString);
         }
-
-        // 시간대 선택 리스너 설정
-        function setupTimeSlotListeners() {
-            const timeSlots = document.querySelectorAll('.time-slot');
-            console.log('시간대 슬롯 개수:', timeSlots.length);
-            
-            timeSlots.forEach(slot => {
-                slot.addEventListener('click', function(e) {
-                    e.preventDefault();
+        
+        // 이벤트 리스너 설정 (시간 및 좌석)
+        function setupEventListeners() {
+            // Time Slot Listeners
+            document.querySelectorAll('.time-slot').forEach(slot => {
+                slot.addEventListener('click', function() {
                     const time = this.dataset.time;
-                    console.log('시간대 클릭:', time);
+                    this.classList.toggle('selected');
                     
-                    if (this.classList.contains('selected')) {
-                        this.classList.remove('selected');
+                    if (selectedTimes.includes(time)) {
                         selectedTimes = selectedTimes.filter(t => t !== time);
-                        console.log('시간대 선택 해제:', time);
                     } else {
-                        this.classList.add('selected');
                         selectedTimes.push(time);
-                        console.log('시간대 선택:', time);
                     }
-                    
-                    console.log('선택된 시간대들:', selectedTimes);
                     updateSeatAvailability();
                 });
             });
-        }
 
-        // 좌석 선택 리스너 설정
-        function setupSeatListeners() {
-            const seats = document.querySelectorAll('.seat');
-            console.log('좌석 개수:', seats.length);
-            
-            seats.forEach(seat => {
-                seat.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    
-                    if (this.classList.contains('reserved')) {
-                        console.log('예약된 좌석 클릭됨');
-                        return;
-                    }
-                    
-                    const seatNumber = this.dataset.seat;
-                    console.log('좌석 클릭:', seatNumber);
-                    
-                    // 모든 좌석 선택 해제
-                    document.querySelectorAll('.seat').forEach(s => s.classList.remove('selected'));
-                    
-                    // 현재 좌석 선택
-                    this.classList.add('selected');
-                    selectedSeat = seatNumber;
-                    console.log('좌석 선택됨:', selectedSeat);
-                });
-            });
-        }
-
-        // 좌석 가용성 업데이트
-        function updateSeatAvailability() {
-            const date = document.getElementById('reservationDate').value;
-            console.log('좌석 가용성 업데이트:', date, selectedTimes);
-            
-            if (!date || selectedTimes.length === 0) {
-                console.log('날짜나 시간대 미선택');
-                return;
-            }
-
-            // 모든 좌석 초기화
+            // Seat Listeners
             document.querySelectorAll('.seat').forEach(seat => {
-                seat.classList.remove('reserved', 'selected');
-            });
-
-            // 예약된 좌석 표시
-            selectedTimes.forEach(time => {
-                reservations.forEach(r => {
-                    if (r.date === date && r.seat) {
-                        const seatElement = document.querySelector(`.seat[data-seat="${r.seat}"]`);
-                        if (seatElement) {
-                            if (r.isCombined && (time === '19:00-20:00' || time === '20:00-21:00')) {
-                                seatElement.classList.add('reserved');
-                            } else if (!r.isCombined && r.time === time) {
-                                seatElement.classList.add('reserved');
-                            }
-                        }
+                seat.addEventListener('click', function() {
+                    if (this.classList.contains('reserved')) return;
+                    
+                    // Un-select if clicking the same seat
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedSeat = null;
+                    } else {
+                        // Select the new seat
+                        document.querySelectorAll('.seat').forEach(s => s.classList.remove('selected'));
+                        this.classList.add('selected');
+                        selectedSeat = this.dataset.seat;
                     }
                 });
             });
-            
-            selectedSeat = null;
+        }
+
+        // ✅ OPTIMIZED: Load only today's reservations from Firebase
+        async function loadTodaysReservations() {
+            const date = document.getElementById('reservationDate').value;
+            const listDiv = document.getElementById('reservationsList');
+            listDiv.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
+
+            try {
+                const q = query(collection(db, 'reservations'), where("date", "==", date));
+                const querySnapshot = await getDocs(q);
+                
+                todaysReservations = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                displayReservations(todaysReservations);
+                updateSeatAvailability();
+                console.log(`Loaded ${todaysReservations.length} reservations for today.`);
+            } catch (error) {
+                console.error('Error loading reservations:', error);
+                listDiv.innerHTML = '<div class="empty-state">데이터를 불러오는 데 실패했습니다. 관리자에게 문의하세요.</div>';
+            }
+        }
+
+        // ✅ OPTIMIZED: Update seat map using local data (no database call)
+        function updateSeatAvailability() {
+            document.querySelectorAll('.seat').forEach(seat => seat.classList.remove('reserved'));
+
+            if (selectedTimes.length === 0) return;
+
+            const reservedSeats = new Set();
+            todaysReservations.forEach(r => {
+                if (r.isCombined || selectedTimes.includes(r.time)) {
+                    reservedSeats.add(r.seat);
+                }
+            });
+
+            reservedSeats.forEach(seatNum => {
+                const seatEl = document.querySelector(`.seat[data-seat="${seatNum}"]`);
+                if (seatEl) seatEl.classList.add('reserved');
+            });
         }
 
         // 예약하기
-        function makeReservation() {
+        window.makeReservation = async function() {
             const name = document.getElementById('studentName').value.trim();
             const classNum = document.getElementById('classNum').value.trim();
             const studentNum = document.getElementById('studentNum').value.trim();
             const date = document.getElementById('reservationDate').value;
 
-            console.log('예약 시도:', {name, classNum, studentNum, date, selectedTimes, selectedSeat});
-
-            if (!name || !classNum || !studentNum || !date || selectedTimes.length === 0 || !selectedSeat) {
-                alert('모든 정보를 입력하고 시간대와 좌석을 선택해주세요!');
+            if (!name || !classNum || !studentNum || selectedTimes.length === 0 || !selectedSeat) {
+                alert('모든 정보를 입력하고 시간대와 좌석을 선택해주세요.');
                 return;
             }
 
-            // 중복 체크
-            for (let time of selectedTimes) {
-                const duplicate = reservations.find(r => 
-                    r.date === date && r.time === time && r.seat === selectedSeat
-                );
-                if (duplicate) {
-                    alert(`${time} 시간대에 이미 예약된 좌석입니다!`);
-                    return;
-                }
+            // ✅ OPTIMIZED: Check for duplicates using local data
+            const isCombinedAttempt = selectedTimes.length === 2;
+            const conflict = todaysReservations.find(r => {
+                if (r.seat !== selectedSeat) return false;
+                if (r.isCombined || isCombinedAttempt || selectedTimes.includes(r.time)) return true;
+                return false;
+            });
+
+            if (conflict) {
+                alert('해당 좌석은 선택하신 시간대에 이미 예약되어 있습니다.');
+                return;
             }
 
-            // 예약 생성
-            if (selectedTimes.length === 2) {
-                reservations.push({
-                    id: Date.now() + Math.random(),
+            try {
+                const reservationData = {
                     name, grade: '2', classNum, studentNum, date,
-                    room: '융합실', time: '19:00-21:00', seat: selectedSeat,
-                    isCombined: true
-                });
-            } else {
-                selectedTimes.forEach(time => {
-                    reservations.push({
-                        id: Date.now() + Math.random(),
-                        name, grade: '2', classNum, studentNum, date,
-                        room: '융합실', time: time, seat: selectedSeat,
-                        isCombined: false
-                    });
-                });
-            }
+                    room: '융합실', seat: selectedSeat, 
+                    createdAt: new Date().toISOString()
+                };
 
-            console.log('예약 완료:', reservations);
-            displayReservations();
-            updateSeatAvailability();
-            clearForm();
-            alert('예약이 완료되었습니다!');
-        }
+                if (isCombinedAttempt) {
+                    await addDoc(collection(db, 'reservations'), {
+                        ...reservationData,
+                        time: '19:00-21:00',
+                        isCombined: true,
+                    });
+                } else {
+                    await addDoc(collection(db, 'reservations'), {
+                        ...reservationData,
+                        time: selectedTimes[0],
+                        isCombined: false,
+                    });
+                }
+                
+                alert('예약이 완료되었습니다!');
+                clearForm();
+                await loadTodaysReservations(); // Refresh data from Firebase
+            } catch (error) {
+                console.error('Error making reservation:', error);
+                alert('예약 중 오류가 발생했습니다.');
+            }
+        };
 
         // 예약 현황 표시
-        function displayReservations() {
+        function displayReservations(reservations) {
             const listDiv = document.getElementById('reservationsList');
-            
             if (reservations.length === 0) {
-                listDiv.innerHTML = '<div class="empty-state">예약 내역이 없습니다.</div>';
+                listDiv.innerHTML = '<div class="empty-state">오늘의 예약 내역이 없습니다.</div>';
                 return;
             }
 
             const sorted = [...reservations].sort((a, b) => {
-                if (a.date !== b.date) return a.date.localeCompare(b.date);
-                return a.time.localeCompare(b.time);
+                if (a.time !== b.time) return a.time.localeCompare(b.time);
+                return parseInt(a.seat) - parseInt(b.seat);
             });
 
             listDiv.innerHTML = sorted.map(r => `
-                <div class="reservation-card">
+                <div class="reservation-card" id="card-${r.id}">
                     <div class="reservation-info">
                         <h3>${r.name} (${r.grade}학년 ${r.classNum}반 ${r.studentNum}번)</h3>
-                        <p>${r.room} - 좌석: ${r.seat}번</p>
-                        <p>${r.date}</p>
-                        <p>${r.time}</p>
+                        <p><strong>좌석:</strong> ${r.seat}번</p>
+                        <p><strong>시간:</strong> ${r.time}</p>
                     </div>
                     <div class="cancel-section">
-                        <p style="color: #999; font-size: 14px; margin-bottom: 8px;">예약 취소를 원하시면 이름을 입력하세요:</p>
+                        <p style="color: #999; font-size: 14px; margin-bottom: 8px;">취소하려면 이름을 입력하세요:</p>
                         <div class="cancel-input-group">
-                            <input type="text" class="cancel-input" id="cancel-${r.id}" placeholder="이름 입력">
-                            <button class="btn-cancel-confirm" onclick="confirmCancelReservation(${r.id}, '${r.name}')">취소하기</button>
+                            <input type="text" class="cancel-input" id="cancel-${r.id}" placeholder="예약자 이름">
+                            <button class="btn-cancel-confirm" onclick="confirmCancelReservation('${r.id}', '${r.name}')">취소 확인</button>
                         </div>
                     </div>
                 </div>
@@ -687,75 +667,70 @@
         }
 
         // 예약 취소
-        function confirmCancelReservation(id, originalName) {
-            const inputName = document.getElementById(`cancel-${id}`).value.trim();
-            
-            if (!inputName) {
-                alert('이름을 입력해주세요.');
-                return;
-            }
-
+        window.confirmCancelReservation = async function(docId, originalName) {
+            const inputName = document.getElementById(`cancel-${docId}`).value.trim();
             if (inputName !== originalName) {
-                alert('예약자 이름과 일치하지 않습니다.');
-                document.getElementById(`cancel-${id}`).value = '';
+                alert('예약자 이름이 일치하지 않습니다.');
                 return;
             }
 
-            if (confirm('정말 예약을 취소하시겠습니까?')) {
-                reservations = reservations.filter(r => r.id !== id);
-                displayReservations();
-                updateSeatAvailability();
-                alert('예약이 취소되었습니다.');
+            if (confirm(`'${originalName}' 학생의 예약을 정말로 취소하시겠습니까?`)) {
+                try {
+                    await deleteDoc(doc(db, 'reservations', docId));
+                    alert('예약이 취소되었습니다.');
+                    await loadTodaysReservations(); // Refresh data from Firebase
+                } catch (error) {
+                    console.error('Error canceling reservation:', error);
+                    alert('취소 중 오류가 발생했습니다.');
+                }
             }
-        }
-
+        };
+        
         // 폼 초기화
         function clearForm() {
             document.getElementById('studentName').value = '';
             document.getElementById('classNum').value = '';
             document.getElementById('studentNum').value = '';
-            document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
-            document.querySelectorAll('.seat').forEach(s => s.classList.remove('selected'));
+            document.querySelectorAll('.time-slot.selected').forEach(s => s.classList.remove('selected'));
+            document.querySelectorAll('.seat.selected').forEach(s => s.classList.remove('selected'));
             selectedTimes = [];
             selectedSeat = null;
         }
 
         // 엑셀 다운로드
-        function exportToExcel() {
+        window.exportToExcel = function() {
             const password = prompt('엑셀 다운로드 비밀번호를 입력하세요:');
-            if (password === null) return;
-            
             if (password !== '0000') {
-                alert('비밀번호가 올바르지 않습니다.');
+                if (password !== null) alert('비밀번호가 올바르지 않습니다.');
                 return;
             }
 
-            const date = document.getElementById('reservationDate').value;
-            const todayReservations = reservations.filter(r => r.date === date);
-
-            if (todayReservations.length === 0) {
+            if (todaysReservations.length === 0) {
                 alert('오늘 예약 내역이 없습니다.');
                 return;
             }
 
-            let csvContent = '\uFEFF날짜,시간대,이름,학년,반,번호,좌석번호\n';
-            const sorted = [...todayReservations].sort((a, b) => {
+            const sorted = [...todaysReservations].sort((a, b) => {
                 if (a.time !== b.time) return a.time.localeCompare(b.time);
                 return parseInt(a.seat) - parseInt(b.seat);
             });
 
+            let csvContent = '\uFEFF날짜,시간대,이름,학년,반,번호,좌석번호\n';
             sorted.forEach(r => {
-                csvContent += `${r.date},${r.time},${r.name},${r.grade}학년,${r.classNum}반,${r.studentNum}번,${r.seat}번\n`;
+                const row = `${r.date},${r.time},${r.name},${r.grade},${r.classNum},${r.studentNum},${r.seat}\n`;
+                csvContent += row;
             });
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `야자실예약_${date}.csv`;
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            const date = document.getElementById('reservationDate').value;
+            link.setAttribute('download', `야자실예약_${date}.csv`);
+            document.body.appendChild(link);
             link.click();
-            
-            alert(`${todayReservations.length}건의 예약 내역을 다운로드했습니다.`);
-        }
+            document.body.removeChild(link);
+        };
     </script>
 </body>
 </html>
