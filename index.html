@@ -5,6 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>야자실 예약 시스템</title>
     <style>
+        .reservations-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.reservations-header h2 {
+    margin: 0;
+}
+
+.reservations-header .btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #ff6b6b 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.reservations-header .btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+}
+
         * {
             margin: 0;
             padding: 0;
@@ -333,6 +360,7 @@
             color: #667eea;
         }
     </style>
+
 </head>
 <body>
     <div class="container">
@@ -455,9 +483,13 @@
             </div>
 
             <div class="reservations-list">
-                <h2 style="margin-bottom: 20px;">예약 현황</h2>
-                <div id="reservationsList"><div class="loading">데이터 로딩 중...</div></div>
+            <div class="reservations-header">
+            <h2>예약 현황</h2>
+            <button class="btn btn-danger" onclick="deleteAllReservations()">모든 예약 삭제 (관리자용)</button>
             </div>
+    <div id="reservationsList"><div class="loading">데이터 로딩 중...</div></div>
+</div>
+
         </div>
     </div>
 
