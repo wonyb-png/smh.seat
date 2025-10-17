@@ -460,6 +460,29 @@
             </div>
         </div>
     </div>
+    // Import the functions you need from the SDKs you need
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+      apiKey: "AIzaSyDPnOtTMW-w6LD0hggKcFkYNGyJOPq1tEg",
+      authDomain: "night-study-room-reservation.firebaseapp.com",
+      projectId: "night-study-room-reservation",
+      storageBucket: "night-study-room-reservation.firebasestorage.app",
+      messagingSenderId: "460809823747",
+      appId: "1:460809823747:web:9d76154d519d0e40b89036",
+      measurementId: "G-2L4SS21JQL"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+        
 
     <script>
         // 전역 변수
