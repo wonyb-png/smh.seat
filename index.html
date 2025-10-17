@@ -451,6 +451,7 @@
 
                 <button class="btn btn-primary" onclick="makeReservation()">예약하기</button>
                 <button class="btn btn-export" onclick="exportToExcel()">오늘 예약자 명단 엑셀로 다운로드</button>
+                <button class="btn btn-danger" onclick="deleteAllReservations()">모든 예약 삭제 (관리자용)</button>
             </div>
 
             <div class="reservations-list">
@@ -743,6 +744,45 @@
             link.click();
             document.body.removeChild(link);
         };
+    // 모든 예약 삭제 (비밀번호 보호)
+window.deleteAllReservations = async function() {
+    const password = prompt('전체 예약 삭제 비밀번호를 입력하세요:');
+    if (password !== '0000') {
+        if (password !== null) alert('비밀번호가 올바르지 않습니다.');
+        return;
+    }
+
+    if (!confirm('정말 모든 예약을 삭제하시겠습니까? 되돌릴 수 없습니다.')) {
+        return;
+    }
+
+    try {
+        const querySnapshot = await getDocs(collection(db, 'reservations'));
+        const batchLimit = 500;
+        let batch = [];
+        let count = 0;
+
+        for (const docSnap of querySnapshot.docs) {
+            batch.push(deleteDoc(doc(db, 'reservations', docSnap.id)));
+            count++;
+            
+            if (batch.length >= batchLimit) {
+                await Promise.all(batch);
+                batch = [];
+            }
+        }
+
+        if (batch.length > 0) {
+            await Promise.all(batch);
+        }
+
+        alert(`총 ${count}건의 예약이 모두 삭제되었습니다.`);
+        await loadTodaysReservations();
+    } catch (error) {
+        console.error('Error deleting all reservations:', error);
+        alert('전체 예약 삭제 중 오류가 발생했습니다.');
+    }
+};    
     </script>
 </body>
 </html>
